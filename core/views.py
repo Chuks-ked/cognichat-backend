@@ -103,7 +103,6 @@ def prompt_grok(request):
 
     ChatMessage.objects.create(role="assistant", content=grok_reply, chat=chat)
 
-    return Response({"reply": grok_reply, "usage": raw.get("usage")}, status=status.HTTP_201_CREATED)
 
 
 def createChatTitle(user_message):

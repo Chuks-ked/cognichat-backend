@@ -25,14 +25,14 @@ This project is a Django-based backend for a chat AI application, integrating wi
 
 ### Prerequisites
 - Python 3.8+
-- Django hunting for Django
+- Django (the web framework for building the backend)
 - PostgreSQL/MySQL (or any supported database)
 - API keys for OpenAI and Google Gemini
 
 ### Steps
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Chuks-ked/cognichat-backend.git
    cd chat-ai-backend
    ```
 2. Create a virtual environment and activate it:
@@ -78,7 +78,7 @@ This project is a Django-based backend for a chat AI application, integrating wi
   - Response: List of chats with all fields.
 
 ## Configuration
-- **CORS**: Allowed origins are set to `http://localhost:5173`, `http://localhost:5174`, and `http://localhost:5175` for local development.
+- **CORS**: Allowed origins are set to `http://localhost:5173` and `http://localhost:5174` for local development.
 - **API Keys**: Store OpenAI and Gemini API keys in environment variables (`OPENAI_API_KEY`, `GEMINI_API_KEY`).
 - **Gemini Model**: Configured to use `gemini-1.5-flash` by default.
 

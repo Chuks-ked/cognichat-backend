@@ -129,7 +129,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = "core.CustomUser"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-XAI_API_KEY = os.getenv("XAI_API_KEY")
-XAI_BASE_URL = os.getenv("XAI_BASE_URL", default="https://api.x.ai/v1")
-XAI_MODEL = os.getenv("XAI_MODEL", default="grok-4")

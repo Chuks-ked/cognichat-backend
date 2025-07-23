@@ -1,8 +1,7 @@
 from openai import OpenAI
-import os
-import requests
+import google.generativeai as genai
 from django.conf import settings
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -19,50 +18,25 @@ seven_days_ago = today - timedelta(days=7)
 thirty_days_ago = today - timedelta(days=30)
 
 
-def _grok_chat(messages, model=None, timeout=60):
-    api_key = getattr(settings, "XAI_API_KEY", None) or os.getenv("XAI_API_KEY")
-    if not api_key:
-        raise ValueError("Missing XAI_API_KEY in settings or environment.")
+# Configure Gemini
+genai.configure(api_key=settings.GEMINI_API_KEY)
 
-    base_url = getattr(settings, "XAI_BASE_URL", None) or os.getenv("XAI_BASE_URL", "https://api.x.ai/v1")
-    model = model or getattr(settings, "XAI_MODEL", None) or os.getenv("XAI_MODEL", "grok-4")
-
-    url = f"{base_url.rstrip('/')}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": model,
-        "messages": messages,
-        "stream": False,
-    }
-
-    resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
-    if resp.status_code >= 400:
-        raise ValueError(f"Grok API error {resp.status_code}: {resp.text}")
-
-    data = resp.json()
+def createGemChatTitle(user_message):
     try:
-        assistant_text = data["choices"][0]["message"]["content"]
-    except Exception as exc:
-        raise ValueError(f"Unexpected Grok response format: {data}") from exc
-
-    return assistant_text, data
-
-def createGrokChatTitle(user_message):
-    try:
-        title_prompt = [
-            {"role": "system", "content": "Give a short, descriptive title (max 5 words) for this conversation."},
-            {"role": "user", "content": user_message},
-        ]
-        title, _ = _grok_chat(title_prompt, model=getattr(settings, "XAI_MODEL", "grok-4"))
-        return title.strip()
+        model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        prompt = (
+            "Give a short, descriptive title (max 5 words) for this conversation:\n"
+            + user_message
+        )
+        response = model.generate_content(prompt)
+        title = response.text.strip()
     except Exception:
-        return (user_message or "")[:50]
+        title = user_message[:50]
+    return title
+
 
 @api_view(['POST'])
-def prompt_grok(request):
+def prompt_gemini(request):
     chat_id = request.data.get("chat_id")
     content = request.data.get("content")
 
@@ -73,36 +47,26 @@ def prompt_grok(request):
         return Response({"error": "There was no prompt passed."}, status=400)
 
     chat, created = Chat.objects.get_or_create(id=chat_id)
-
-    if created or not chat.title:
-        chat.title = createGrokChatTitle(content)
-        chat.save(update_fields=["title"])
-    else:
-        pass
+    chat.title = createGemChatTitle(content)
+    chat.save()
 
     ChatMessage.objects.create(role="user", chat=chat, content=content)
 
     chat_messages = chat.messages.order_by("created_at")[:10]
+    conversation = "\n".join(
+        f"{msg.role.capitalize()}: {msg.content}" for msg in chat_messages
+    )
+    conversation += f"\nUser: {content}\nAssistant:"
 
-    grok_messages = []
-    for msg in chat_messages:
-        grok_messages.append({"role": msg.role, "content": msg.content})
-
-    if not any(m["role"] == "system" for m in grok_messages):
-        grok_messages.insert(0, {"role": "system", "content": "You are a helpful assistant."})
-
-    # Call Grok
     try:
-        grok_reply, raw = _grok_chat(grok_messages)
-    except ValueError as api_err:
-        return Response({"error": f"Grok API error: {api_err}"}, status=500)
-    except requests.RequestException as net_err:
-        return Response({"error": "Network error calling Grok", "detail": str(net_err)}, status=502)
+        model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        response = model.generate_content(conversation)
+        gemini_reply = response.text
     except Exception as e:
-        return Response({"error": f"Unexpected error calling Grok: {str(e)}"}, status=500)
+        return Response({"error": f"Gemini API error: {str(e)}"}, status=500)
 
-    ChatMessage.objects.create(role="assistant", content=grok_reply, chat=chat)
-
+    ChatMessage.objects.create(role="assistant", content=gemini_reply, chat=chat)
+    return Response({"reply": gemini_reply}, status=status.HTTP_201_CREATED)
 
 
 def createChatTitle(user_message):
